@@ -204,7 +204,7 @@ declare
   v_prod record;
   v_qty int;
 begin
-  if v_role not in ('admin','recepcion') then
+  if v_role not in ('admin','recepcion','barbero') then
     raise exception 'No tienes permiso para registrar ventas';
   end if;
 

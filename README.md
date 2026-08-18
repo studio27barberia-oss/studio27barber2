@@ -67,6 +67,26 @@ Abre la URL que te muestre la terminal (normalmente http://localhost:5173).
 > tú al correr estos comandos — si algo truena, pégame el error exacto
 > y lo corrijo.
 
+## 4.0 Si ya tenías el proyecto corriendo: parche de "perfil libre"
+
+Si ya habías corrido `schema.sql` antes de esta versión (o el parche
+anterior de barbero-solo-a-sí-mismo), corre
+`supabase/patch_perfil_libre.sql` en el SQL Editor de Supabase (una sola
+vez, es seguro volver a correrlo). Si es una instalación nueva desde
+cero con el `schema.sql` de este ZIP, ya viene incluido — no hace falta
+el parche.
+
+Qué hace este parche:
+- Permite que el rol `barbero` llame a `create_sale()` y elija **cualquier
+  barbero activo** (no solo a sí mismo) — igual que puede hacer recepción.
+  Pensado para cuando varios barberos comparten un mismo dispositivo o
+  inicio de sesión y necesitan elegir "a nombre de quién" es la venta.
+- Lo mismo para crear citas: cualquier perfil autorizado puede agendar
+  una cita para cualquier barbero activo.
+- Nota: un barbero solo **ve** (consulta) sus propias ventas y citas —
+  eso no cambió. Lo que se abrió es a nombre de quién puede *registrar*
+  algo nuevo, no qué puede *consultar* después.
+
 ## 4.1 Activar Supabase Realtime (importante)
 
 El código ya está escrito para escuchar cambios en vivo (`useSales`,

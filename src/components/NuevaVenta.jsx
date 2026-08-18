@@ -8,7 +8,7 @@ import { getProducts } from "../services/products";
 import { createSale } from "../services/sales";
 import { BigButton, Panel, Pill, Row, SectionTitle, cardBtnStyle, inputStyle, qtyBtn, secondaryBtn } from "./ui";
 
-export default function NuevaVenta({ onDone }) {
+export default function NuevaVenta({ onDone, fixedBarberId, fixedBarberName }) {
   const [step, setStep] = useState(0);
   const [barbers, setBarbers] = useState([]);
   const [services, setServices] = useState([]);
@@ -17,7 +17,7 @@ export default function NuevaVenta({ onDone }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
 
-  const [barberId, setBarberId] = useState(null);
+  const [barberId, setBarberId] = useState(fixedBarberId || null);
   const [serviceIds, setServiceIds] = useState([]);
   const [productSel, setProductSel] = useState({});
   const [tipMode, setTipMode] = useState(10);
@@ -25,7 +25,15 @@ export default function NuevaVenta({ onDone }) {
   const [payMethod, setPayMethod] = useState(null);
   const [justSaved, setJustSaved] = useState(null); // { total, barberName }
 
-  const steps = ["Barbero", "Servicios", "Productos", "Propina", "Pago", "Confirmar"];
+  // Si viene un barbero fijo (perfil de barbero: solo puede vender a su
+  // propio nombre), se salta el paso de "elegir barbero" por completo.
+  const stepKeys = fixedBarberId
+    ? ["servicios", "productos", "propina", "pago", "confirmar"]
+    : ["barbero", "servicios", "productos", "propina", "pago", "confirmar"];
+  const stepLabels = { barbero: "Barbero", servicios: "Servicios", productos: "Productos", propina: "Propina", pago: "Pago", confirmar: "Confirmar" };
+  const steps = stepKeys.map((k) => stepLabels[k]);
+  const current = stepKeys[step];
+  const lastStep = stepKeys.length - 1;
 
   useEffect(() => {
     (async () => {
@@ -51,12 +59,14 @@ export default function NuevaVenta({ onDone }) {
   const subtotal = selectedServices.reduce((a, s) => a + Number(s.price), 0) + selectedProducts.reduce((a, p) => a + Number(p.price) * p.qty, 0);
   const tip = tipMode === "custom" ? Number(customTip) || 0 : Math.round(subtotal * (tipMode / 100));
   const total = subtotal + tip;
-  const barber = barbers.find((b) => b.id === barberId);
+  const barber = fixedBarberId
+    ? (barbers.find((b) => b.id === fixedBarberId) || { id: fixedBarberId, name: fixedBarberName })
+    : barbers.find((b) => b.id === barberId);
 
   function canNext() {
-    if (step === 0) return !!barberId;
-    if (step === 1) return serviceIds.length > 0;
-    if (step === 4) return !!payMethod;
+    if (current === "barbero") return !!barberId;
+    if (current === "servicios") return serviceIds.length > 0;
+    if (current === "pago") return !!payMethod;
     return true;
   }
 
@@ -65,7 +75,7 @@ export default function NuevaVenta({ onDone }) {
     setSaveError("");
     try {
       await createSale({
-        barber_id: barberId,
+        barber_id: fixedBarberId || barberId,
         client_id: null,
         client_name: null,
         tip,
@@ -82,7 +92,7 @@ export default function NuevaVenta({ onDone }) {
   }
 
   function resetAll() {
-    setStep(0); setBarberId(null); setServiceIds([]); setProductSel({});
+    setStep(0); setBarberId(fixedBarberId || null); setServiceIds([]); setProductSel({});
     setTipMode(10); setCustomTip(""); setPayMethod(null); setJustSaved(null); setSaveError("");
     // recargar productos por si el inventario cambió
     getProducts().then((p) => setProducts(p.filter((x) => x.active))).catch(() => {});
@@ -112,7 +122,7 @@ export default function NuevaVenta({ onDone }) {
 
   return (
     <div>
-      <SectionTitle>Nueva venta</SectionTitle>
+      <SectionTitle>{fixedBarberName ? `Nueva venta — ${fixedBarberName}` : "Nueva venta"}</SectionTitle>
       <div style={{ display: "flex", gap: 6, marginBottom: 22 }}>
         {steps.map((s, i) => (
           <div key={s} style={{ flex: 1 }}>
@@ -129,7 +139,7 @@ export default function NuevaVenta({ onDone }) {
       )}
 
       <Panel style={{ minHeight: 320 }}>
-        {step === 0 && (
+        {current === "barbero" && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: 10 }}>
             {barbers.map((b) => (
               <button key={b.id} onClick={() => setBarberId(b.id)} style={cardBtnStyle(barberId === b.id)}>
@@ -143,7 +153,7 @@ export default function NuevaVenta({ onDone }) {
           </div>
         )}
 
-        {step === 1 && (
+        {current === "servicios" && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 10 }}>
             {services.map((s) => {
               const on = serviceIds.includes(s.id);
@@ -163,7 +173,7 @@ export default function NuevaVenta({ onDone }) {
           </div>
         )}
 
-        {step === 2 && (
+        {current === "productos" && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 10 }}>
             {products.map((p) => {
               const qty = productSel[p.id] || 0;
@@ -185,7 +195,7 @@ export default function NuevaVenta({ onDone }) {
           </div>
         )}
 
-        {step === 3 && (
+        {current === "propina" && (
           <div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
               {TIP_PRESETS.map((p) => (
@@ -201,7 +211,7 @@ export default function NuevaVenta({ onDone }) {
           </div>
         )}
 
-        {step === 4 && (
+        {current === "pago" && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 10 }}>
             {PAY_METHODS.map((m) => (
               <button key={m.id} onClick={() => setPayMethod(m.id)} style={cardBtnStyle(payMethod === m.id)}>
@@ -211,7 +221,7 @@ export default function NuevaVenta({ onDone }) {
           </div>
         )}
 
-        {step === 5 && (
+        {current === "confirmar" && (
           <div>
             <div style={{ fontSize: 13, color: T.slate, marginBottom: 4 }}>Barbero</div>
             <div style={{ fontWeight: 700, marginBottom: 12 }}>{barber?.name}</div>
@@ -236,14 +246,14 @@ export default function NuevaVenta({ onDone }) {
             <ChevronLeft size={16} /> Atrás
           </button>
         )}
-        {step < 5 && (
+        {step < lastStep && (
           <div style={{ flex: 1 }}>
             <BigButton disabled={!canNext()} onClick={() => setStep(step + 1)}>
               Continuar <ArrowRight size={18} />
             </BigButton>
           </div>
         )}
-        {step === 5 && (
+        {step === lastStep && (
           <div style={{ flex: 1 }}>
             <BigButton disabled={saving} onClick={confirmSale}>
               {saving ? "Guardando…" : "Cobrar / Guardar venta"}

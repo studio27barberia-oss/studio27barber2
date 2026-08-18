@@ -11,22 +11,38 @@ export default function Productos() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ name: "", price: "", stock: "", category: "", commissionPct: "" });
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   async function load() { setLoading(true); setProducts(await getProducts()); setLoading(false); }
   useEffect(() => { load(); }, []);
   useRealtimeTable("products", () => load()); // el inventario baja solo cuando recepción vende un producto
 
-  function openNew() { setForm({ name: "", price: "", stock: "", category: "", commissionPct: 10 }); setEditing("new"); }
-  function openEdit(p) { setForm({ name: p.name, price: p.price, stock: p.stock, category: p.category || "", commissionPct: p.commission_pct }); setEditing(p.id); }
+  function openNew() { setForm({ name: "", price: "", stock: "", category: "", commissionPct: 10 }); setSaveError(""); setEditing("new"); }
+  function openEdit(p) { setForm({ name: p.name, price: p.price, stock: p.stock, category: p.category || "", commissionPct: p.commission_pct }); setSaveError(""); setEditing(p.id); }
 
   async function save() {
     if (!form.name.trim()) return;
-    const payload = { name: form.name, price: Number(form.price), stock: Number(form.stock), category: form.category, commission_pct: Number(form.commissionPct) || 0 };
-    if (editing === "new") await createProduct(payload);
-    else await updateProduct(editing, payload);
-    setEditing(null); load();
+    setSaving(true);
+    setSaveError("");
+    try {
+      const payload = { name: form.name, price: Number(form.price), stock: Number(form.stock), category: form.category, commission_pct: Number(form.commissionPct) || 0 };
+      if (editing === "new") await createProduct(payload);
+      else await updateProduct(editing, payload);
+      setEditing(null); load();
+    } catch (e) {
+      setSaveError(e.message || "No se pudo guardar. Revisa tu conexión o tus permisos.");
+    } finally {
+      setSaving(false);
+    }
   }
-  async function remove(id) { await deleteProduct(id); load(); }
+  async function remove(id) {
+    try {
+      await deleteProduct(id); load();
+    } catch (e) {
+      alert("No se pudo eliminar: " + e.message);
+    }
+  }
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: T.slate }}>Cargando…</div>;
 
@@ -64,7 +80,12 @@ export default function Productos() {
           <input style={inputStyle()} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
           <label style={labelStyle}>Comisión del barbero por esta venta (%)</label>
           <input type="number" style={inputStyle()} value={form.commissionPct} onChange={(e) => setForm({ ...form, commissionPct: e.target.value })} />
-          <div style={{ marginTop: 16 }}><BigButton onClick={save}>Guardar</BigButton></div>
+          {saveError && (
+            <div style={{ background: "#FBEAE5", border: `1px solid ${T.red}`, color: T.red, borderRadius: 10, padding: "9px 12px", fontSize: 12.5, marginTop: 10, fontWeight: 600 }}>
+              {saveError}
+            </div>
+          )}
+          <div style={{ marginTop: 16 }}><BigButton disabled={saving} onClick={save}>{saving ? "Guardando…" : "Guardar"}</BigButton></div>
         </Modal>
       )}
     </div>

@@ -13,6 +13,8 @@ export default function Barberos() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ name: "", commission: 40 });
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const dates = weekRangeDates();
   const { sales } = useSales({ from: dates[0], to: dates[6] });
@@ -27,23 +29,35 @@ export default function Barberos() {
   useEffect(() => { load(); }, []);
   useRealtimeTable("barbers", () => load()); // se refresca solo si otro dispositivo edita/agrega un barbero
 
-  function openNew() { setForm({ name: "", commission: 40 }); setEditing("new"); }
-  function openEdit(b) { setForm({ name: b.name, commission: b.commission_pct }); setEditing(b.id); }
+  function openNew() { setForm({ name: "", commission: 40 }); setSaveError(""); setEditing("new"); }
+  function openEdit(b) { setForm({ name: b.name, commission: b.commission_pct }); setSaveError(""); setEditing(b.id); }
 
   async function save() {
     if (!form.name.trim()) return;
-    if (editing === "new") {
-      await createBarber({ name: form.name, commission_pct: Number(form.commission) });
-    } else {
-      await updateBarber(editing, { name: form.name, commission_pct: Number(form.commission) });
+    setSaving(true);
+    setSaveError("");
+    try {
+      if (editing === "new") {
+        await createBarber({ name: form.name, commission_pct: Number(form.commission) });
+      } else {
+        await updateBarber(editing, { name: form.name, commission_pct: Number(form.commission) });
+      }
+      setEditing(null);
+      load();
+    } catch (e) {
+      setSaveError(e.message || "No se pudo guardar. Revisa tu conexión o tus permisos.");
+    } finally {
+      setSaving(false);
     }
-    setEditing(null);
-    load();
   }
 
   async function toggleActive(b) {
-    await toggleBarberActive(b.id, !b.active);
-    load();
+    try {
+      await toggleBarberActive(b.id, !b.active);
+      load();
+    } catch (e) {
+      alert("No se pudo cambiar el estado: " + e.message);
+    }
   }
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: T.slate }}>Cargando…</div>;
@@ -94,7 +108,12 @@ export default function Barberos() {
           <div style={{ fontSize: 11, color: T.slate, marginTop: 6 }}>
             Cambiar esto NO afecta ventas ya registradas: cada venta guarda el % que estaba vigente al momento de cobrarla.
           </div>
-          <div style={{ marginTop: 16 }}><BigButton onClick={save}>Guardar</BigButton></div>
+          {saveError && (
+            <div style={{ background: "#FBEAE5", border: `1px solid ${T.red}`, color: T.red, borderRadius: 10, padding: "9px 12px", fontSize: 12.5, marginTop: 10, fontWeight: 600 }}>
+              {saveError}
+            </div>
+          )}
+          <div style={{ marginTop: 16 }}><BigButton disabled={saving} onClick={save}>{saving ? "Guardando…" : "Guardar"}</BigButton></div>
         </Modal>
       )}
     </div>

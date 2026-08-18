@@ -12,6 +12,8 @@ export default function Clientes() {
   const [search, setSearch] = useState("");
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ name: "", phone: "" });
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   async function load() { setLoading(true); setClients(await getClients()); setLoading(false); }
   useEffect(() => { load(); }, []);
@@ -33,8 +35,16 @@ export default function Clientes() {
 
   async function save() {
     if (!form.name.trim()) return;
-    await createClient({ name: form.name, phone: form.phone });
-    setAdding(false); setForm({ name: "", phone: "" }); load();
+    setSaving(true);
+    setSaveError("");
+    try {
+      await createClient({ name: form.name, phone: form.phone });
+      setAdding(false); setForm({ name: "", phone: "" }); load();
+    } catch (e) {
+      setSaveError(e.message || "No se pudo guardar. Revisa tu conexión o tus permisos.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -76,7 +86,12 @@ export default function Clientes() {
           <input style={inputStyle()} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           <label style={labelStyle}>Teléfono</label>
           <input style={inputStyle()} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-          <div style={{ marginTop: 16 }}><BigButton onClick={save}>Guardar</BigButton></div>
+          {saveError && (
+            <div style={{ background: "#FBEAE5", border: `1px solid ${T.red}`, color: T.red, borderRadius: 10, padding: "9px 12px", fontSize: 12.5, marginTop: 10, fontWeight: 600 }}>
+              {saveError}
+            </div>
+          )}
+          <div style={{ marginTop: 16 }}><BigButton disabled={saving} onClick={save}>{saving ? "Guardando…" : "Guardar"}</BigButton></div>
         </Modal>
       )}
     </div>

@@ -39,6 +39,8 @@ const ADMIN_NAV = [
 ];
 const BARBER_NAV = [
   { id: "inicio", label: "Inicio", icon: Home },
+  { id: "nueva-venta", label: "Nueva venta", icon: PlusCircle },
+  { id: "citas", label: "Citas", icon: Calendar },
 ];
 
 export default function App() {
@@ -62,7 +64,11 @@ export default function App() {
   const currentView = view || (role === "admin" ? "dashboard" : "inicio");
 
   function renderView() {
-    if (currentView === "nueva-venta" && role !== "barbero") return <NuevaVenta onDone={() => setView("inicio")} />;
+    // "Nueva venta" siempre deja elegir el barbero, en cualquier perfil
+    // (recepción o barbero) — útil cuando varios barberos comparten un
+    // mismo dispositivo/inicio de sesión.
+    if (currentView === "nueva-venta") return <NuevaVenta onDone={() => setView("inicio")} />;
+    if (currentView === "citas") return <CitasHoy />;
     if (currentView === "ventas-dia") return <VentasDelDia />;
     if (currentView === "clientes" && role !== "barbero") return <Clientes />;
     if (currentView === "dashboard" && role === "admin") return <Dashboard />;
@@ -96,10 +102,23 @@ export default function App() {
       if (role === "barbero") {
         return (
           <div>
-            <h2 style={{ fontSize: 15, fontWeight: 800, textTransform: "uppercase", color: T.ink }}>Mi resumen</h2>
-            <p style={{ color: T.slate, fontSize: 13.5 }}>
-              Vista de solo lectura para barberos: tus ventas, servicios, propinas y comisiones del día,
-              filtradas automáticamente por Row Level Security en Supabase (solo ves tus propios datos).
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1.3fr", gap: 20, alignItems: "start", marginBottom: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#FFFFFF", border: `1px solid ${T.line}`, borderRadius: 20, padding: "48px 24px", minHeight: 260 }}>
+                <div style={{ width: "100%", maxWidth: 280 }}>
+                  <button onClick={() => setView("nueva-venta")} style={{
+                    background: T.ink, color: T.bone, border: "none", borderRadius: 20, padding: "34px 20px",
+                    fontSize: 22, fontWeight: 800, display: "flex", flexDirection: "column", alignItems: "center",
+                    justifyContent: "center", gap: 14, cursor: "pointer", width: "100%",
+                  }}>
+                    <PlusCircle size={40} /> Nueva venta
+                  </button>
+                </div>
+              </div>
+              <CitasHoy />
+            </div>
+            <h2 style={{ fontSize: 15, fontWeight: 800, textTransform: "uppercase", color: T.ink, marginBottom: 8 }}>Mis ventas de hoy</h2>
+            <p style={{ color: T.slate, fontSize: 13.5, marginTop: -4, marginBottom: 12 }}>
+              Solo ves tus propias ventas — filtrado automáticamente por Supabase, no por la interfaz.
             </p>
             <VentasDelDia />
           </div>

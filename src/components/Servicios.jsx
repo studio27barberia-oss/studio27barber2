@@ -11,25 +11,41 @@ export default function Servicios() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ name: "", price: "", duration: "" });
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   async function load() { setLoading(true); setServices(await getServices()); setLoading(false); }
   useEffect(() => { load(); }, []);
   useRealtimeTable("services", () => load());
 
-  function openNew() { setForm({ name: "", price: "", duration: "" }); setEditing("new"); }
-  function openEdit(s) { setForm({ name: s.name, price: s.price, duration: s.duration_minutes }); setEditing(s.id); }
+  function openNew() { setForm({ name: "", price: "", duration: "" }); setSaveError(""); setEditing("new"); }
+  function openEdit(s) { setForm({ name: s.name, price: s.price, duration: s.duration_minutes }); setSaveError(""); setEditing(s.id); }
 
   async function save() {
     if (!form.name.trim()) return;
-    if (editing === "new") {
-      await createService({ name: form.name, price: Number(form.price), duration_minutes: Number(form.duration) });
-    } else {
-      await updateService(editing, { name: form.name, price: Number(form.price), duration_minutes: Number(form.duration) });
+    setSaving(true);
+    setSaveError("");
+    try {
+      if (editing === "new") {
+        await createService({ name: form.name, price: Number(form.price), duration_minutes: Number(form.duration) });
+      } else {
+        await updateService(editing, { name: form.name, price: Number(form.price), duration_minutes: Number(form.duration) });
+      }
+      setEditing(null); load();
+    } catch (e) {
+      setSaveError(e.message || "No se pudo guardar. Revisa tu conexión o tus permisos.");
+    } finally {
+      setSaving(false);
     }
-    setEditing(null); load();
   }
-  async function remove(id) { await deleteService(id); load(); }
-  async function toggle(s) { await updateService(s.id, { active: !s.active }); load(); }
+  async function remove(id) {
+    try { await deleteService(id); load(); }
+    catch (e) { alert("No se pudo eliminar: " + e.message); }
+  }
+  async function toggle(s) {
+    try { await updateService(s.id, { active: !s.active }); load(); }
+    catch (e) { alert("No se pudo cambiar el estado: " + e.message); }
+  }
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: T.slate }}>Cargando…</div>;
 
@@ -62,7 +78,12 @@ export default function Servicios() {
           <input type="number" style={inputStyle()} value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
           <label style={labelStyle}>Duración (min)</label>
           <input type="number" style={inputStyle()} value={form.duration} onChange={(e) => setForm({ ...form, duration: e.target.value })} />
-          <div style={{ marginTop: 16 }}><BigButton onClick={save}>Guardar</BigButton></div>
+          {saveError && (
+            <div style={{ background: "#FBEAE5", border: `1px solid ${T.red}`, color: T.red, borderRadius: 10, padding: "9px 12px", fontSize: 12.5, marginTop: 10, fontWeight: 600 }}>
+              {saveError}
+            </div>
+          )}
+          <div style={{ marginTop: 16 }}><BigButton disabled={saving} onClick={save}>{saving ? "Guardando…" : "Guardar"}</BigButton></div>
         </Modal>
       )}
     </div>
