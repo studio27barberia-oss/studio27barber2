@@ -1,26 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { PlusCircle, Pencil, Trash2, Clock, ShieldAlert } from "lucide-react";
+import { PlusCircle, Pencil, Trash2, Clock } from "lucide-react";
 import { T } from "../lib/theme";
 import { mx } from "../utils/format";
 import { getServices, createService, updateService, deleteService } from "../services/catalogServices";
 import { useRealtimeTable } from "../hooks/useRealtimeTable";
 import { addBtn, iconBtn, inputStyle, labelStyle, BigButton, Modal, Panel, SectionTitle } from "./ui";
 
-// Solo Administrador. Ver la nota de defensa-en-profundidad en Barberos.jsx:
-// esta misma verificación existe en el router (App.jsx) y además en
-// Supabase (RLS) — aquí es una tercera capa, no la única.
-export default function Servicios({ role }) {
-  if (role !== "admin") {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "60px 20px", textAlign: "center" }}>
-        <ShieldAlert size={32} color={T.slate} />
-        <div style={{ fontWeight: 800, fontSize: 15, color: T.ink, marginTop: 12 }}>Acceso restringido</div>
-        <div style={{ fontSize: 13, color: T.slate, marginTop: 4, maxWidth: 340 }}>
-          Solo el perfil de Administrador puede ver y editar servicios.
-        </div>
-      </div>
-    );
-  }
+// El control de acceso real vive en App.jsx (solo renderiza esto para
+// role === "admin") y en las políticas RLS de Supabase (rechazan
+// cualquier escritura en "services" que no venga de un admin).
+export default function Servicios() {
   return <ServiciosAdmin />;
 }
 
