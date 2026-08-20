@@ -25,3 +25,11 @@ export async function updateBarber(id, patch) {
 export async function toggleBarberActive(id, active) {
   return updateBarber(id, { active });
 }
+export async function deleteBarber(id) {
+  const { data, error } = await supabase
+    .from('barbers')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+  return data;
+}
