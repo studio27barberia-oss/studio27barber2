@@ -7,7 +7,7 @@ import { T } from "./lib/theme";
 import { useAuth } from "./hooks/useAuth";
 import { signOut } from "./services/auth";
 import Login from "./components/Login";
-import Home from "./components/Home";
+import Home from './components/Dashboard';
 import NuevaVenta from "./components/NuevaVenta";
 import Clientes from "./components/Clientes";
 import Dashboard from "./components/Dashboard";
