@@ -1,29 +1,30 @@
 import React, { useState } from "react";
 import {
-  Home, PlusCircle, Wallet, Calendar, Users, LayoutDashboard, BarChart3,
+  Home as HomeIcon, PlusCircle, Wallet, Calendar, Users, LayoutDashboard, BarChart3,
   Star, Package, Scissors, Archive, UserCircle2, LogOut,
 } from "lucide-react";
 import { T } from "./lib/theme";
 import { useAuth } from "./hooks/useAuth";
 import { signOut } from "./services/auth";
 import Login from "./components/Login";
+import Home from "./components/Home";
 import NuevaVenta from "./components/NuevaVenta";
-import VentasDelDia from "./components/VentasDelDia";
-import Semana from "./components/Semana";
+import Clientes from "./components/Clientes";
 import Dashboard from "./components/Dashboard";
+import Semana from "./components/Semana";
+import VentasDelDia from "./components/VentasDelDia";
+import Historial from "./components/Historial";
 import Barberos from "./components/Barberos";
 import Servicios from "./components/Servicios";
 import Productos from "./components/Productos";
-import Clientes from "./components/Clientes";
 import Reportes from "./components/Reportes";
-import Historial from "./components/Historial";
-import CitasHoy from "./components/CitasHoy";
-import { BigButton } from "./components/ui";
 
+// Solo dos roles: admin y recepción. La cuenta de recepción vive abierta
+// en el iPad del local — cualquier barbero registra ahí mismo su propia
+// venta eligiendo su nombre en el desplegable de "Nueva venta".
 const RECEPTION_NAV = [
-  { id: "inicio", label: "Inicio", icon: Home },
+  { id: "inicio", label: "Inicio", icon: HomeIcon },
   { id: "nueva-venta", label: "Nueva venta", icon: PlusCircle },
-  { id: "ventas-dia", label: "Ventas del día", icon: Wallet },
   { id: "clientes", label: "Clientes", icon: Users },
 ];
 const ADMIN_NAV = [
@@ -36,11 +37,6 @@ const ADMIN_NAV = [
   { id: "productos", label: "Productos", icon: Package },
   { id: "clientes", label: "Clientes", icon: Users },
   { id: "reportes", label: "Reportes", icon: BarChart3 },
-];
-const BARBER_NAV = [
-  { id: "inicio", label: "Inicio", icon: Home },
-  { id: "nueva-venta", label: "Nueva venta", icon: PlusCircle },
-  { id: "citas", label: "Citas", icon: Calendar },
 ];
 
 export default function App() {
@@ -55,79 +51,28 @@ export default function App() {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: T.slate, fontFamily: "system-ui", textAlign: "center", padding: 20 }}>
         Tu cuenta no tiene un perfil/rol asignado todavía.<br />
-        Pide al administrador que te agregue en la tabla <code>profiles</code> de Supabase.
+        Pide al administrador que te agregue en la tabla <code>profiles</code> de Supabase
+        (con <code>role</code> = "admin" o "recepcion").
       </div>
     );
   }
 
-  const nav = role === "admin" ? ADMIN_NAV : role === "recepcion" ? RECEPTION_NAV : BARBER_NAV;
+  const nav = role === "admin" ? ADMIN_NAV : RECEPTION_NAV;
   const currentView = view || (role === "admin" ? "dashboard" : "inicio");
 
   function renderView() {
-    // "Nueva venta" siempre deja elegir el barbero, en cualquier perfil
-    // (recepción o barbero) — útil cuando varios barberos comparten un
-    // mismo dispositivo/inicio de sesión.
+    if (currentView === "inicio" && role === "recepcion") return <Home onNavigate={setView} />;
     if (currentView === "nueva-venta") return <NuevaVenta onDone={() => setView("inicio")} />;
-    if (currentView === "citas") return <CitasHoy />;
-    if (currentView === "ventas-dia") return <VentasDelDia />;
-    if (currentView === "clientes" && role !== "barbero") return <Clientes />;
+    if (currentView === "clientes") return <Clientes />;
     if (currentView === "dashboard" && role === "admin") return <Dashboard />;
     if (currentView === "semana" && role === "admin") return <Semana />;
+    if (currentView === "ventas-dia" && role === "admin") return <VentasDelDia />;
     if (currentView === "historial" && role === "admin") return <Historial />;
     if (currentView === "barberos" && role === "admin") return <Barberos />;
     if (currentView === "servicios" && role === "admin") return <Servicios />;
     if (currentView === "productos" && role === "admin") return <Productos />;
     if (currentView === "reportes" && role === "admin") return <Reportes />;
-    if (currentView === "inicio") {
-      if (role === "recepcion") {
-        return (
-          <div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1.3fr", gap: 20, alignItems: "start" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#FFFFFF", border: `1px solid ${T.line}`, borderRadius: 20, padding: "48px 24px", minHeight: 260 }}>
-                <div style={{ width: "100%", maxWidth: 280 }}>
-                  <button onClick={() => setView("nueva-venta")} style={{
-                    background: T.ink, color: T.bone, border: "none", borderRadius: 20, padding: "34px 20px",
-                    fontSize: 22, fontWeight: 800, display: "flex", flexDirection: "column", alignItems: "center",
-                    justifyContent: "center", gap: 14, cursor: "pointer", width: "100%",
-                  }}>
-                    <PlusCircle size={40} /> Nueva venta
-                  </button>
-                </div>
-              </div>
-              <CitasHoy />
-            </div>
-          </div>
-        );
-      }
-      if (role === "barbero") {
-        return (
-          <div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1.3fr", gap: 20, alignItems: "start", marginBottom: 24 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#FFFFFF", border: `1px solid ${T.line}`, borderRadius: 20, padding: "48px 24px", minHeight: 260 }}>
-                <div style={{ width: "100%", maxWidth: 280 }}>
-                  <button onClick={() => setView("nueva-venta")} style={{
-                    background: T.ink, color: T.bone, border: "none", borderRadius: 20, padding: "34px 20px",
-                    fontSize: 22, fontWeight: 800, display: "flex", flexDirection: "column", alignItems: "center",
-                    justifyContent: "center", gap: 14, cursor: "pointer", width: "100%",
-                  }}>
-                    <PlusCircle size={40} /> Nueva venta
-                  </button>
-                </div>
-              </div>
-              <CitasHoy />
-            </div>
-            <h2 style={{ fontSize: 15, fontWeight: 800, textTransform: "uppercase", color: T.ink, marginBottom: 8 }}>Mis ventas de hoy</h2>
-            <p style={{ color: T.slate, fontSize: 13.5, marginTop: -4, marginBottom: 12 }}>
-              Solo ves tus propias ventas — filtrado automáticamente por Supabase, no por la interfaz.
-            </p>
-            <VentasDelDia />
-          </div>
-        );
-      }
-    }
-    return (
-      <div style={{ color: T.slate, fontSize: 13.5 }}>No tienes acceso a esta sección con tu rol actual.</div>
-    );
+    return <div style={{ color: T.slate, fontSize: 13.5 }}>No tienes acceso a esta sección con tu rol actual.</div>;
   }
 
   return (
@@ -135,7 +80,7 @@ export default function App() {
       <style>{`
         * { box-sizing: border-box; }
         input:focus, select:focus { border-color: ${T.brass} !important; }
-        button:focus-visible, input:focus-visible { outline: 2px solid ${T.brass}; outline-offset: 1px; }
+        button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid ${T.brass}; outline-offset: 1px; }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-thumb { background: ${T.line}; border-radius: 8px; }
       `}</style>
@@ -148,7 +93,7 @@ export default function App() {
           <div>
             <div style={{ fontWeight: 800, fontSize: 14 }}>BARBER OS</div>
             <div style={{ fontSize: 10.5, color: T.brass, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-              {role === "admin" ? "Administrador" : role === "recepcion" ? "Recepción" : "Barbero"}
+              {role === "admin" ? "Administrador" : "Recepción"}
             </div>
           </div>
         </div>
