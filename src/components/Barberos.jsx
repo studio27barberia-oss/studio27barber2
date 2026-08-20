@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { PlusCircle, Pencil, Trash2, ShieldAlert, Phone } from "lucide-react";
+import { PlusCircle, Pencil, Trash2, Phone } from "lucide-react";
 import { T } from "../lib/theme";
 import { mx, weekRangeDates, todayStr } from "../utils/format";
 import { getBarbers, createBarber, updateBarber, deleteBarber, toggleBarberActive } from "../services/barbers";
@@ -8,24 +8,12 @@ import { useRealtimeTable } from "../hooks/useRealtimeTable";
 import { computeStats } from "../services/stats";
 import { addBtn, iconBtn, inputStyle, labelStyle, BigButton, Modal, Panel, SectionTitle } from "./ui";
 
-// Solo Administrador. App.jsx ya evita que "recepcion" llegue a esta
-// pantalla, pero se valida también aquí adentro (defensa en profundidad):
-// nunca confíes solo en ocultar un botón en el router. Los permisos
-// reales están además protegidos por Row Level Security en Supabase —
-// aunque alguien manipulara el frontend, la base de datos rechaza
-// cualquier insert/update/delete en "barbers" que no venga de un admin.
-export default function Barberos({ role }) {
-  if (role !== "admin") {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "60px 20px", textAlign: "center" }}>
-        <ShieldAlert size={32} color={T.slate} />
-        <div style={{ fontWeight: 800, fontSize: 15, color: T.ink, marginTop: 12 }}>Acceso restringido</div>
-        <div style={{ fontSize: 13, color: T.slate, marginTop: 4, maxWidth: 340 }}>
-          Solo el perfil de Administrador puede ver y editar barberos.
-        </div>
-      </div>
-    );
-  }
+// El control de acceso real vive en dos lugares: App.jsx solo renderiza
+// este componente cuando role === "admin", y las políticas RLS en
+// Supabase rechazan cualquier insert/update/delete en "barbers" que no
+// venga de un admin, sin importar qué haga el frontend. Esta pantalla
+// asume que si llegó hasta aquí, ya tiene permiso.
+export default function Barberos() {
   return <BarberosAdmin />;
 }
 
