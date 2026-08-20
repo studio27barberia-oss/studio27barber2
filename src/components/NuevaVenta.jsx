@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Scissors, Check, ChevronLeft, ArrowRight, PlusCircle } from "lucide-react";
+import { Check, ChevronLeft, ArrowRight, PlusCircle } from "lucide-react";
 import { T } from "../lib/theme";
-import { PAY_METHODS, TIP_PRESETS, mx } from "../utils/format";
+import { PAY_METHODS, TIP_PRESETS, mx, todayStr, toLocalTimeStr } from "../utils/format";
 import { getBarbers } from "../services/barbers";
 import { getServices } from "../services/catalogServices";
 import { getProducts } from "../services/products";
@@ -82,6 +82,12 @@ export default function NuevaVenta({ onDone, fixedBarberId, fixedBarberName }) {
         payment_method: payMethod,
         services: selectedServices.map((s) => ({ id: s.id })),
         products: selectedProducts.map((p) => ({ id: p.id, qty: p.qty })),
+        // Fecha y hora LOCALES del dispositivo (no UTC). El servidor usa
+        // exactamente estos valores en vez de calcular la hora del
+        // servidor, para que la venta caiga siempre en el día correcto
+        // sin importar la zona horaria de Supabase.
+        sale_date: todayStr(),
+        sale_time: toLocalTimeStr(new Date()),
       });
       setJustSaved({ total, barberName: barber?.name });
     } catch (e) {
@@ -140,16 +146,25 @@ export default function NuevaVenta({ onDone, fixedBarberId, fixedBarberName }) {
 
       <Panel style={{ minHeight: 320 }}>
         {current === "barbero" && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: 10 }}>
-            {barbers.map((b) => (
-              <button key={b.id} onClick={() => setBarberId(b.id)} style={cardBtnStyle(barberId === b.id)}>
-                <Scissors size={18} color={barberId === b.id ? T.brass : T.slate} />
-                <div style={{ textAlign: "left" }}>
-                  <div style={{ fontWeight: 700, fontSize: 13.5 }}>{b.name}</div>
-                </div>
-              </button>
-            ))}
-            {barbers.length === 0 && <div style={{ color: T.slate, fontSize: 13 }}>No hay barberos activos configurados.</div>}
+          <div style={{ maxWidth: 360 }}>
+            <label style={{ fontSize: 11.5, fontWeight: 700, color: T.slate, textTransform: "uppercase", letterSpacing: "0.04em", display: "block", marginBottom: 8 }}>
+              Barbero (obligatorio)
+            </label>
+            <select
+              value={barberId || ""}
+              onChange={(e) => setBarberId(e.target.value || null)}
+              style={{
+                width: "100%", padding: "16px 14px", borderRadius: 12, border: `1.5px solid ${barberId ? T.ink : T.line}`,
+                fontSize: 16, fontWeight: 700, outline: "none", background: barberId ? "#F2EAD6" : "#FAF6EE", color: T.ink,
+                appearance: "none", WebkitAppearance: "none", cursor: "pointer",
+              }}
+            >
+              <option value="">Selecciona un barbero…</option>
+              {barbers.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+            {barbers.length === 0 && <div style={{ color: T.slate, fontSize: 13, marginTop: 10 }}>No hay barberos activos configurados.</div>}
           </div>
         )}
 
