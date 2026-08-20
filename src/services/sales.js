@@ -46,12 +46,16 @@ export async function getSalesToday() {
   return getSales({ from: today, to: today });
 }
 
+// Las ventas son de solo-inserción: nunca se editan ni se borran (así
+// se protege el historial permanente). Por eso basta con escuchar el
+// evento INSERT — es más preciso que "*" y evita procesar eventos que
+// nunca van a ocurrir en estas tablas.
 export function subscribeToSales(onChange) {
   const channel = supabase
     .channel("sales-realtime")
-    .on("postgres_changes", { event: "*", schema: "public", table: "sales" }, onChange)
-    .on("postgres_changes", { event: "*", schema: "public", table: "sale_items" }, onChange)
-    .on("postgres_changes", { event: "*", schema: "public", table: "sale_products" }, onChange)
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "sales" }, onChange)
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "sale_items" }, onChange)
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "sale_products" }, onChange)
     .subscribe();
   return () => supabase.removeChannel(channel);
 }
