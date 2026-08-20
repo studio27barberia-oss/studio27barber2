@@ -1,126 +1,177 @@
-import React from "react";
-import { Wallet, Scissors, Users, TrendingUp, Gift, Package } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { PlusCircle, CalendarPlus } from "lucide-react";
 import { T } from "../lib/theme";
-import { DAYS, mx, weekRangeDates, isoWeekday, todayStr } from "../utils/format";
+import { DAYS, PAY_METHODS, mx, weekRangeDates, isoWeekday, todayStr } from "../utils/format";
 import { useSales } from "../hooks/useSales";
-import { computeStats } from "../services/stats";
-import { Panel, SectionTitle, StatCard } from "./ui";
+import { getBarbers } from "../services/barbers";
+import { createAppointment } from "../services/appointments";
+import { Modal, Panel, SectionTitle, inputStyle, labelStyle, BigButton } from "./ui";
 
-export default function Dashboard() {
-  const dates = weekRangeDates();
+// Vista principal de Recepción (iPad).
+// - Dos botones grandes: + Nueva venta / + Cita.
+// - Nada de cajas de dinero acumulado (eso es información del admin).
+// - Abajo, la semana completa (lunes a domingo) con el detalle de cada
+//   servicio agrupado por día. No se "borra" nada: simplemente muestra
+//   siempre la semana ACTUAL (lunes de hoy → domingo de hoy), así que al
+//   llegar un nuevo lunes el rango cambia solo y arranca "vacío" — pero
+//   la semana anterior sigue completa y consultable en Historial/Semana
+//   dentro del panel de administrador.
+
+function formatDayHeading(dateStr, dayName) {
+  const d = new Date(dateStr + "T00:00:00");
+  const day = d.getDate();
+  const month = d.toLocaleDateString("es-MX", { month: "long" });
+  return `${dayName} ${day} de ${month}`;
+}
+
+function NuevaCitaModal({ onClose }) {
+  const [barbers, setBarbers] = useState([]);
+  const [barberId, setBarberId] = useState("");
+  const [clientName, setClientName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [time, setTime] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    getBarbers().then((b) => setBarbers(b.filter((x) => x.active))).catch(() => {});
+  }, []);
+
+  async function save() {
+    if (!barberId || !clientName.trim() || !time) {
+      setError("Barbero, cliente y hora son obligatorios.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await createAppointment({
+        barber_id: barberId,
+        client_name: clientName.trim(),
+        phone: phone.trim(),
+        appt_time: time,
+      });
+      onClose();
+    } catch (e) {
+      setError(e.message || "No se pudo guardar la cita.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal onClose={onClose} title="Nueva cita">
+      <label style={labelStyle}>Barbero</label>
+      <select value={barberId} onChange={(e) => setBarberId(e.target.value)} style={inputStyle()}>
+        <option value="">Selecciona…</option>
+        {barbers.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+      </select>
+      <label style={labelStyle}>Cliente</label>
+      <input style={inputStyle()} value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Nombre del cliente" />
+      <label style={labelStyle}>Teléfono</label>
+      <input style={inputStyle()} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Opcional" />
+      <label style={labelStyle}>Hora</label>
+      <input type="time" style={inputStyle()} value={time} onChange={(e) => setTime(e.target.value)} />
+      {error && (
+        <div style={{ background: "#FBEAE5", border: `1px solid ${T.red}`, color: T.red, borderRadius: 10, padding: "9px 12px", fontSize: 12.5, marginTop: 10, fontWeight: 600 }}>
+          {error}
+        </div>
+      )}
+      <div style={{ marginTop: 16 }}>
+        <BigButton disabled={saving} onClick={save}>{saving ? "Guardando…" : "Guardar cita"}</BigButton>
+      </div>
+    </Modal>
+  );
+}
+
+export default function Home({ onNavigate }) {
+  const dates = weekRangeDates(); // [lunes ... domingo] de la semana actual — se recalcula solo
   const { sales, loading } = useSales({ from: dates[0], to: dates[6] });
-  const stats = computeStats(sales);
+  const [showCita, setShowCita] = useState(false);
+  const todayIdx = isoWeekday(todayStr());
 
-  if (loading) return <div style={{ padding: 40, textAlign: "center", color: T.slate }}>Cargando dashboard…</div>;
-
-  const weekTotals = dates.map((d) => stats.byDate[d]?.revenue || 0);
-  const maxVal = Math.max(1, ...weekTotals);
-  const weekRevenue = weekTotals.reduce((a, b) => a + b, 0);
-  const weekServices = dates.reduce((a, d) => a + (stats.byDate[d]?.count ? (stats.byDate[d]?.count) : 0), 0);
-  const weekServiceCount = sales.reduce((a, s) => a + (s.sale_items || []).length, 0);
-  const weekTips = dates.reduce((a, d) => a + (stats.byDate[d]?.tips || 0), 0);
-  const weekCommission = dates.reduce((a, d) => a + (stats.byDate[d]?.commission || 0), 0);
-  const weekSubtotal = dates.reduce((a, d) => a + (stats.byDate[d]?.subtotal || 0), 0);
-  const weekProductRevenue = dates.reduce((a, d) => a + (stats.byDate[d]?.productRevenue || 0), 0);
-  const weekProfit = weekSubtotal - weekCommission;
-  const weekTransactions = sales.length;
-
-  const topServices = Object.entries(stats.byService).sort((a, b) => b[1] - a[1]).slice(0, 5);
-  const maxMethod = Math.max(1, ...Object.values(stats.byMethod));
+  const byDay = useMemo(() => {
+    const map = {};
+    dates.forEach((d) => { map[d] = []; });
+    sales.forEach((s) => {
+      if (map[s.sale_date]) map[s.sale_date].push(s);
+    });
+    Object.values(map).forEach((list) => list.sort((a, b) => (a.sale_time || "").localeCompare(b.sale_time || "")));
+    return map;
+  }, [sales, dates]);
 
   return (
     <div>
-      <SectionTitle>Dashboard</SectionTitle>
-
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-        <div style={{ flex: "1 1 260px", minWidth: 220, borderRadius: 16, padding: "20px 22px", background: T.ink, color: T.bone }}>
-          <div style={{ fontSize: 12, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(250,246,238,0.65)", fontWeight: 600 }}>Ganancia total semanal</div>
-          <div style={{ fontSize: 32, fontWeight: 800, color: T.brass, marginTop: 6 }}>{mx(weekProfit)}</div>
-          <div style={{ fontSize: 12, color: "rgba(250,246,238,0.55)", marginTop: 4 }}>Ventas de servicios y productos, ya descontadas las comisiones</div>
-        </div>
-        <div style={{ flex: "1 1 220px", minWidth: 200, borderRadius: 16, padding: "20px 22px", background: T.bonePanel, border: `1px solid ${T.line}` }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <div style={{ fontSize: 12, letterSpacing: "0.06em", textTransform: "uppercase", color: T.slate, fontWeight: 600 }}>Venta de productos</div>
-            <Package size={16} color={T.brassDim} />
-          </div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: T.ink, marginTop: 6 }}>{mx(weekProductRevenue)}</div>
-          <div style={{ fontSize: 12, color: T.slate, marginTop: 4 }}>Esta semana</div>
-        </div>
+      {/* Botones grandes */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 28 }}>
+        <button onClick={() => onNavigate("nueva-venta")} style={{
+          background: T.ink, color: T.bone, border: "none", borderRadius: 20, padding: "30px 20px",
+          fontSize: 20, fontWeight: 800, display: "flex", flexDirection: "column", alignItems: "center",
+          justifyContent: "center", gap: 12, cursor: "pointer",
+        }}>
+          <PlusCircle size={36} /> Nueva venta
+        </button>
+        <button onClick={() => setShowCita(true)} style={{
+          background: "#FFFFFF", color: T.ink, border: `2px solid ${T.ink}`, borderRadius: 20, padding: "30px 20px",
+          fontSize: 20, fontWeight: 800, display: "flex", flexDirection: "column", alignItems: "center",
+          justifyContent: "center", gap: 12, cursor: "pointer",
+        }}>
+          <CalendarPlus size={36} /> Cita
+        </button>
       </div>
 
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 24 }}>
-        <StatCard label="Ventas totales (semana)" value={mx(weekRevenue)} icon={Wallet} accent={T.green} />
-        <StatCard label="Servicios" value={weekServiceCount} icon={Scissors} />
-        <StatCard label="Ventas" value={weekTransactions} icon={Users} />
-        <StatCard label="Comisiones" value={mx(weekCommission)} icon={TrendingUp} />
-        <StatCard label="Propinas" value={mx(weekTips)} icon={Gift} />
-      </div>
+      {/* Tabla semanal, sin totales de dinero */}
+      <SectionTitle>Esta semana</SectionTitle>
+      {loading && <div style={{ color: T.slate, fontSize: 13, padding: 20 }}>Cargando…</div>}
 
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16, marginBottom: 16 }}>
-        <Panel>
-          <SectionTitle>Ventas por día</SectionTitle>
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 160 }}>
-            {DAYS.map((d, i) => (
-              <div key={d} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                <div style={{ fontSize: 11, color: T.slate }}>{weekTotals[i] > 0 ? mx(weekTotals[i]) : ""}</div>
-                <div style={{ width: "100%", borderRadius: 6, background: i === isoWeekday(todayStr()) ? T.brass : T.ink, height: Math.max(4, (weekTotals[i] / maxVal) * 120) }} />
-                <div style={{ fontSize: 10.5, color: T.slate }}>{d.slice(0, 3)}</div>
-              </div>
-            ))}
-          </div>
-        </Panel>
-        <Panel>
-          <SectionTitle>Métodos de pago</SectionTitle>
-          {Object.entries(stats.byMethod).map(([m, v]) => (
-            <div key={m} style={{ marginBottom: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 4 }}>
-                <span style={{ textTransform: "capitalize", fontWeight: 600 }}>{m}</span><span>{mx(v)}</span>
-              </div>
-              <div style={{ height: 8, borderRadius: 6, background: T.bone }}>
-                <div style={{ height: 8, borderRadius: 6, width: `${(v / maxMethod) * 100}%`, background: T.brass }} />
-              </div>
-            </div>
-          ))}
-        </Panel>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
-        <Panel style={{ padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "16px 20px 0" }}><SectionTitle>Rendimiento por barbero</SectionTitle></div>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
-            <thead>
-              <tr style={{ background: T.bone, textAlign: "left" }}>
-                {["Barbero", "Servicios", "Ventas", "Propinas", "Comisión"].map((h) => (
-                  <th key={h} style={{ padding: "10px 20px", color: T.slate, fontWeight: 700, fontSize: 11, textTransform: "uppercase" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {Object.values(stats.byBarber).map((b) => (
-                <tr key={b.name} style={{ borderTop: `1px solid ${T.line}` }}>
-                  <td style={{ padding: "10px 20px", fontWeight: 700 }}>{b.name}</td>
-                  <td style={{ padding: "10px 20px" }}>{b.services}</td>
-                  <td style={{ padding: "10px 20px" }}>{mx(b.sales)}</td>
-                  <td style={{ padding: "10px 20px" }}>{mx(b.tips)}</td>
-                  <td style={{ padding: "10px 20px", fontWeight: 700 }}>{mx(b.commission)}</td>
-                </tr>
-              ))}
-              {Object.values(stats.byBarber).length === 0 && (
-                <tr><td colSpan={5} style={{ padding: 20, textAlign: "center", color: T.slate }}>Sin ventas esta semana.</td></tr>
+      {!loading && dates.map((date, i) => {
+        const dayName = DAYS[i];
+        const rows = byDay[date] || [];
+        return (
+          <div key={date} style={{ marginBottom: 18 }}>
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8, marginBottom: 8,
+              fontSize: 13, fontWeight: 800, color: i === todayIdx ? T.brassDim : T.ink,
+            }}>
+              {formatDayHeading(date, dayName)}
+              {i === todayIdx && (
+                <span style={{ fontSize: 10, fontWeight: 700, background: "#F2EAD6", color: T.brassDim, padding: "2px 8px", borderRadius: 999 }}>HOY</span>
               )}
-            </tbody>
-          </table>
-        </Panel>
-        <Panel>
-          <SectionTitle>Servicios más vendidos</SectionTitle>
-          {topServices.length === 0 && <div style={{ color: T.slate, fontSize: 13 }}>Sin datos aún.</div>}
-          {topServices.map(([name, count]) => (
-            <div key={name} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${T.line}`, fontSize: 13.5 }}>
-              <span style={{ fontWeight: 600 }}>{name}</span><span style={{ color: T.slate }}>{count}</span>
             </div>
-          ))}
-        </Panel>
-      </div>
+            <Panel style={{ padding: 0, overflow: "hidden" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: T.bone, textAlign: "left" }}>
+                    {["Hora", "Barbero", "Cliente", "Servicio", "Propina", "Total", "Método de pago"].map((h) => (
+                      <th key={h} style={{ padding: "8px 14px", color: T.slate, fontWeight: 700, fontSize: 10.5, textTransform: "uppercase" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((s) => (
+                    <tr key={s.id} style={{ borderTop: `1px solid ${T.line}` }}>
+                      <td style={{ padding: "8px 14px" }}>{(s.sale_time || "").slice(0, 5)}</td>
+                      <td style={{ padding: "8px 14px", fontWeight: 600 }}>{s.barber_name_snapshot}</td>
+                      <td style={{ padding: "8px 14px", color: T.slate }}>{s.client_name_snapshot || "—"}</td>
+                      <td style={{ padding: "8px 14px", color: T.slate }}>{(s.sale_items || []).map((sv) => sv.service_name_snapshot).join(", ") || "—"}</td>
+                      <td style={{ padding: "8px 14px" }}>{mx(s.tip)}</td>
+                      <td style={{ padding: "8px 14px", fontWeight: 700 }}>{mx(s.total)}</td>
+                      <td style={{ padding: "8px 14px" }}>{PAY_METHODS.find((m) => m.id === s.payment_method)?.label}</td>
+                    </tr>
+                  ))}
+                  {rows.length === 0 && (
+                    <tr><td colSpan={7} style={{ padding: 14, textAlign: "center", color: T.slate, fontSize: 12.5 }}>Sin servicios registrados.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </Panel>
+          </div>
+        );
+      })}
+
+      {showCita && (
+        <NuevaCitaModal onClose={() => setShowCita(false)} />
+      )}
     </div>
   );
 }
